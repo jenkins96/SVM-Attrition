@@ -1,0 +1,208 @@
+---
+title: "SVM"
+author: "Adrian Jenkins"
+date: "9/4/2021"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+listOfPackages <-c("tidyverse","caret", "e1071",
+"magrittr")
+
+for (i in listOfPackages){
+  if(! i %in% installed.packages()){
+    install.packages(i, dependencies = TRUE)
+  }
+  lapply(i, require, character.only = TRUE)
+  rm(i)
+}
+data <- read_csv("dataset/WA_Fn-UseC_-HR-Employee-Attrition.csv")
+attrition <- data
+attrition %<>%
+  select("Attrition", "MonthlyIncome", "OverTime", "JobLevel", "Age")
+
+# One-Hot Encoding -------------------------------------------------------
+dummy <- dummyVars( Attrition ~., data = attrition)
+attrition_SVG <- data.frame(predict(dummy, newdata = attrition))
+attrition_SVG %<>%
+  select(-"OverTimeNo") %>%
+  rename("OverTime" = "OverTimeYes")
+attrition_SVG %<>%
+  cbind(Attrition = attrition$Attrition)
+attrition_SVG$Attrition <- factor(attrition_SVG$Attrition, ordered = TRUE, 
+                              levels = c("No", "Yes"))
+
+# Data Partioning
+ set.seed(1)
+  training.ids <- createDataPartition(attrition_SVG$Attrition, p = 0.75, list = F)
+  mod <- svm(Attrition ~ ., data = attrition_SVG[training.ids, ])
+  #summary(mod)
+```
+  
+The data contains `r nrow(data)` observations and `r ncol(data)` attributes. The purpose of this model will be to predict 'Attrition' attribute, which refers to whether or not the employee leaves the company. For the SVM model we will be using as independent variables the followings: 'Monthly Income', 'Age', 'Overtime' and 'Job Level'.
+  
+This algorithm only accepts independent variables of numerical type, for this reason, the procedure known as "One Hot Encoding" must be performed. This technique consists of transforming each level of a factor into an independent column with values "1" or "0" depending on the presence or absence of the attribute.
+  
+The data set is partitioned with 75% of the observations for the training set and the remaining 25% for the test set. The model is then generated
+  
+```{r eval = FALSE}
+
+dummy <- dummyVars( Attrition ~., data = attrition)
+attrition_SVG <- data.frame(predict(dummy, newdata = attrition))
+attrition_SVG %<>%
+  select(-"OverTimeNo") %>%
+  rename("OverTime" = "OverTimeYes")
+attrition_SVG %<>%
+  cbind(Attrition = attrition$Attrition)
+attrition_SVG$Attrition <- factor(attrition_SVG$Attrition, ordered = TRUE,levels = c("No", "Yes"))
+
+# Data Partioning
+ set.seed(1)
+  training.ids <- createDataPartition(attrition_SVG$Attrition, p = 0.75, list = F)
+  mod <- svm(Attrition ~ ., data = attrition_SVG[training.ids, ])
+  
+```
+```{r echo = FALSE}
+summary(mod)
+```
+  
+Prediction is made:
+```{r echo = FALSE}
+## Prediction
+  pred <- predict(mod, attrition_SVG[-training.ids, ])
+  my_table <- table(attrition_SVG[-training.ids, "Attrition"], pred, dnn = c("Actual", "Predicted"))
+  
+  ## Evaluation
+  TP <- my_table[2,2]
+  TN <- my_table[1,1]
+  FP <- my_table[1,2]
+  FN <- my_table[2,1]
+  
+  print(my_table)
+  # ACCURACY 
+    # = TP + TN / TP+FP+FN+TN
+  accuracy <- sum(TP, TN)/sum(TP,FP,FN,TN)
+  sprintf("Accuracy: %f", accuracy)
+  
+   # PRECISION
+    # = TP / TP + FP 
+  precision <-  TP/ sum(TP,FP)
+  sprintf("Precision: %f", precision)
+  
+  # SENSITIVITY / RECALL]
+    # = TP/ TP + FN 
+  recall<- TP/(sum(TP, FN)) 
+  sprintf("Recall: %f", recall[1])
+  
+  # SPECIFICITY
+    # = TN / TN + FP 
+  specificity <- TN/(sum(TN,FP))
+  sprintf("Specificity: %f", specificity[1])
+  
+ 
+  #F1 Score = 2*(Recall * Precision) / (Recall + Precision)
+  F1 <- 2 *(recall * precision)/(recall + precision)
+  sprintf("F1 Score: %f", F1)
+```
+  
+According to **accuracy**, the model predicts correctly in 84.7% of the cases.
+  
+According to **precision**, of all the positive predictions that made the mode, only 56% did left the company.
+  
+According to **sensitivity**, of all the people who left the company, the model was correct in 23.7% of the cases.
+  
+According to **specificity**, of all the people who did not leave the company, the model correctly predicted 96.4% of the observations.
+  
+The **"F1 - Score"** has a value of 33.3%.
+  
+We proceed to optimize the model and find the best parameters for:
+  
+* 'gamma': defines how far the influence of a single observation in the training set extends. A low value translates into a large influence and vice versa.
+  
+* 'cost': compensates the correct classification of the training examples with the maximization of the margin of the decision function. For larger values of "C", a smaller margin will be accepted if the decision function is better at correctly classifying all training points.
+  
+```{r}
+tuned <- tune.svm(Attrition ~ ., data = attrition_SVG[training.ids, ], 
+                    gamma = 10^(-6: -1), cost = 10^(1:3))
+  summary(tuned)
+```
+  
+We then proceed to use this values for constructing the model and making the prediction once again:
+```{r echo = FALSE}
+ mod_fit <- svm(Attrition ~., data = attrition_SVG[training.ids, ], 
+                 cost = 1000, gamma = 0.1, 
+                 class.weights = c("No" = 0.3, "Yes" = 0.7),
+                 kernel="radial")
+  summary(mod_fit)
+  ## Prediction
+  pred_fit <- predict(mod_fit, attrition_SVG[-training.ids, ])
+  
+  my_table2 <- table(attrition_SVG[-training.ids, "Attrition"], pred_fit, 
+        dnn = c("Actual", "Predicted"))
+  
+  ## Evaluation
+  TP_2 <- my_table2[2,2]
+  TN_2 <- my_table2[1,1]
+  FP_2 <- my_table2[1,2]
+  FN_2 <- my_table2[2,1]
+  
+  print(my_table2)
+  # ACCURACY 
+  # = TP + TN / TP+FP+FN+TN
+  accuracy_2 <- sum(TP_2, TN_2)/sum(TP_2,FP_2,FN_2,TN_2)
+  sprintf("Accuracy: %f", accuracy_2)
+ 
+   # PRECISION
+  # = TP / TP + FP 
+  precision_2 <-  TP_2/ sum(TP_2,FP_2)
+  sprintf("Precision: %f", precision_2)
+  
+  # SENSITIVITY / RECALL]
+  # = TP/ TP + FN 
+  recall_2<- TP_2/(sum(TP_2, FN_2)) 
+  sprintf("Recall: %f", recall_2[1])
+  
+  # SPECIFICITY
+  # = TN / TN + FP 
+  specificity_2 <- TN_2/(sum(TN_2,FP_2))
+  sprintf("Specificity: %f", specificity_2[1])
+  
+ 
+  #F1 Score = 2*(Recall * Precision) / (Recall + Precision)
+  F1_2 <- 2 *(recall_2 * precision_2)/(recall_2 + precision_2)
+  sprintf("F1 Score: %f", F1_2)
+```
+  
+However, since the aim is to increase the recall, a "C" of 1000 will be used in order to allow for a greater number of error classifications.
+  
+In addition to using these values for the parameters, the "class.weights" parameter is also used as an attempt to mitigate the difference between those who did not drop out and those who did.
+  
+According to **accuracy**, the model predicts correctly in 82.8% of the cases.
+  
+According to **precision**, of all the positive predictions that made the model, only 45.6% did left the company.
+  
+According to **sensitivity**, of all the people who left the company, the model was correct in 35.5% of the cases.
+  
+According to **specificity**, of all the people who did not leave the company, the model correctly predicts 91.8% of the observations.
+  
+The **"F1 - Score"** has a value of 40%.
+
+
+## Comparing Models
+  
+| Metric      | First Model | Second Model |
+|-------------|-------------|--------------|
+| Accuracy    | 84.7%       | 82.3%        |
+| Precision   | 56%         | 45.6%        |
+| Sensibility | 23.7%       | 35.5%        |
+| Specificity | 96.4%       | 91.8%        |
+| F1-Score    | 33%         | 40%          |
+
+Undoubtedly, the second model fulfills the proposed objective better. Not only does it achieve a better balance between sensitivity and specificity, exceeding the first model by 7%. In addition, of all the people who left the company, it correctly predicts 35.5% of the cases. This represents an improvement of 11.8%.Therefore, since the objective was to correctly predict those who left the company, the second model performs better.
+  
+You might say that the value is too low, but that could be for  a number of reasons and it might be that the provided independent variables does not really explain the dependent variable. Nonetheless, a 35.5% is better than 0.
+  
+Hope you could learned something and feel free to take what you need. The code is in the file "script.R".
