@@ -24,7 +24,6 @@
 * [Getting Started](#getting-started)
   * [Prerequisites](#prerequisites)
   * [Installation](#installation)
-* [Usage](#usage)
 * [Authors](#authors)
 
 ## About The Project
@@ -34,8 +33,6 @@ Metric to prioritize: recall.
 [Data set was obtained from IBM HR Analytics Employee Attrition & Performance](https://www.kaggle.com/pavansubhasht/ibm-hr-analytics-attrition-dataset)
   
 ![Screen Shot](images/SVM-SS.png)
-  
-There are many great README templates available on GitHub, however, I didn't find one that really suit my needs so I created this enhanced one. I want to create a README template so amazing that it'll be the last one you ever need.
   
 ## Built With
 * R
@@ -62,8 +59,6 @@ git clone https://github.com/jenkins96/SVM-Attrition.git
 2. Open R Project: "SVM-Attrition.Rproj".
   
 3. Install and load the required libraries Script comes with function for installing and loading libraries if needed. 
-
-## Usage
 
 ## Authors
 
